@@ -1,0 +1,200 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>waterFall-lazyLoad-Ajax</title>
+    <style>
+        html,
+        body,
+        ul,
+        li,
+        p,
+        div {
+            margin: 0;
+            padding: 0;
+            font-size: 14px;
+        }
+        
+        ul,
+        li {
+            list-style: none;
+        }
+        
+        .wrap {
+            width: 900px;
+            margin: 0 auto;
+        }
+        
+        .clearfix:after {
+            content: '';
+            display: block;
+            clear: both;
+        }
+        
+        .pic-ct {
+            outline: 1px solid red;
+            position: relative;
+        }
+        
+        .pic-ct .item {
+            margin: 10px;
+            border-radius: 4px;
+            width: 280px;
+            box-shadow: 0 2px 4px #ccc;
+        }
+        
+        .pic-ct .item img {
+            width: 260px;
+            padding: 10px;
+        }
+        
+        .pic-ct .item .header {
+            margin: 0px 10px 10px 10px;
+            font-size: 1rem;
+            color: #444343;
+            font-weight: 400;
+        }
+        
+        .pic-ct .item .desp {
+            padding: 10px 10px 20px 10px;
+            color: grey;
+            font-size: .8rem;
+        }
+        
+        #load {
+            text-align: center;
+            color: #5d5e68
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <div class="ct-waterfall">
+            <ul class="pic-ct clearfix">
+                <!--<li class="item">
+                    <a href="#" class="link">
+                        <img src="http://s.img.mix.sina.com.cn/auto/resize?img=http%3A%2F%2Fwww.sinaimg.cn%2Fdy%2Fslidenews%2F5_img%2F2016_09%2F453_75615_657883.jpg&size=250_0" alt="">
+                    </a>
+                    <h4 class="header">标题</h4>
+                    <p class="desp">
+                        当地时间2016年3月1日，在东部与亲俄武装作战中受伤的乌克兰士兵接受海豚治疗。
+                    </p>
+                </li>-->
+            </ul>
+            <div id="load">Loading...</div>
+        </div>
+    </div>
+    <script src="http://code.jquery.com/jquery-2.1.1.min.js"></script>
+    <script src="./Exposure.js"></script>
+
+    <script>
+        //1.每次获取固定数量的数据
+        //2.把获取到的数据拼装成dom放到页面
+        //3.使用瀑布流去拜访dom位置
+
+        var lazyLoad = function() {
+            return {
+                init: function($target, callback) {
+                    $target.each(function(idx, node) {
+                        new Exposure($(node), callback)
+                    })
+                }
+            }
+        }()
+
+        var isDataArrived = true;
+        lazyLoad.init($('#load'), function() {
+            if (!isDataArrived) {
+                return
+            }
+            getNews() //通过ajax获取新闻数据, 将得到的数据拼装成dom到页面,瀑布流重排内容
+        })
+
+
+        var curPage = 1
+
+        function getNews() {
+            $.ajax({
+                url: 'https://platform.sina.com.cn/slide/album_tech?',
+                type: 'get',
+                dataType: 'jsonp',
+                jsonp: 'jsoncallback',
+                data: {
+                    app_key: '1271687855',
+                    num: 10,
+                    page: curPage
+                },
+                success: function(ret) {
+                    if (ret.status.code === '0' && ret) {
+                        console.log(ret)
+                        console.log('success')
+                        var $node = render(ret.data)
+                        curPage++
+                        isDataArrived = true
+                    }
+                },
+                error: function() {
+                    console.log('fail to get data')
+                }
+            })
+            isDataArrived = false
+        }
+
+        function render(newsList) {
+            $.each(newsList, function(idx, news) {
+                var $node = getNode(news)
+                $node.find('img').load(function() {
+                    $('.pic-ct').append($node)
+                    waterFall($node)
+                })
+            })
+        }
+
+        function getNode(news) {
+            var tpl = `
+                <li class="item">
+                    <a href="#" class="link">
+                        <img src="${news.img_url}" alt="${news.img_count}">
+                    </a>
+                    <div class="header">${news.name}</div>
+                    <p class="desp">
+                        ${news.short_intro}
+                    </p>
+                </li>`
+            return $(tpl)
+        }
+
+        var itemWidth = 300,
+            columnCount = parseInt($('.pic-ct').width() / itemWidth),
+            colSumHeightArr = []
+
+        for (let i = 0; i < columnCount; i++) {
+            colSumHeightArr.push(0)
+        }
+
+
+        function waterFall($node) {
+            var minIdx = 0,
+                minSumHeight = colSumHeightArr[0]
+            for (var i = 0; i < colSumHeightArr.length; i++) {
+                if (colSumHeightArr[i] < minSumHeight) {
+                    minIdx = i
+                    minSumHeight = colSumHeightArr[i]
+                }
+            }
+
+            $node.css({
+                'position': 'absolute',
+                'top': minSumHeight,
+                'left': minIdx * itemWidth,
+            })
+            colSumHeightArr[minIdx] += $node.outerHeight(true)
+            var maxValue = Math.max.apply(undefined, colSumHeightArr)
+            $('.pic-ct').height(maxValue)
+        }
+    </script>
+</body>
+
+</html>
